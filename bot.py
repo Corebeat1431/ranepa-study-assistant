@@ -630,6 +630,31 @@ async def run_agents_async(update: Update, context: ContextTypes.DEFAULT_TYPE, t
 # =====================================================================
 # НАСТРОЙКА КНОПОК И МЕНЮ ПРИ СТАРТЕ
 # =====================================================================
+async def handle_health_check(reader, writer):
+    try:
+        await reader.read(1024)
+        response = "HTTP/1.1 200 OK\r\nContent-Length: 14\r\nContent-Type: text/plain\r\n\r\nBot is running\n"
+        writer.write(response.encode('utf-8'))
+        await writer.drain()
+    except Exception as e:
+        logger.error(f"[HEALTH-CHECK] Ошибка HTTP-запроса: {e}")
+    finally:
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
+
+async def start_health_check_server():
+    port = int(os.getenv("PORT", 7860))
+    try:
+        server = await asyncio.start_server(handle_health_check, '0.0.0.0', port)
+        logger.info(f"[HEALTH-CHECK] HTTP-сервер для проверки доступности запущен на порту {port}")
+        async with server:
+            await server.serve_forever()
+    except Exception as e:
+        logger.error(f"[HEALTH-CHECK] Не удалось запустить HTTP-сервер: {e}")
+
 async def post_init(application: Application) -> None:
     """Установка меню команд бота в левом нижнем углу интерфейса Telegram"""
     await application.bot.set_my_commands([
@@ -638,6 +663,8 @@ async def post_init(application: Application) -> None:
     ])
     # Запускаем фоновый монитор таймаута неактивности
     asyncio.create_task(idle_timeout_monitor(application))
+    # Запускаем фоновый HTTP-сервер для прохождения Health check на Hugging Face
+    asyncio.create_task(start_health_check_server())
 
 # =====================================================================
 # ТОЧКА ВХОДА БОТА
