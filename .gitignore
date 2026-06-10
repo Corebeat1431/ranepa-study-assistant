@@ -1,0 +1,34 @@
+# Секретные ключи и конфиги
+.env
+.env.local
+.env.*
+
+# Виртуальные окружения Python
+.venv/
+venv/
+ENV/
+
+# Папка локального переносного Node.js (не нужна на сервере Linux)
+node-portable/
+
+# Временные папки и кэш Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Временные файлы логов, кэша и генераций
+temp/
+output/
+*.log
+
+# Черновики и вспомогательные скрипты разработчика
+scratch/
+.agents/
+
+# Тяжелые презентации и PDF документы
+manual.pdf
+Доклад Акманов.pptx
+Nauchno-populyarnyj-turizm-v-g-Sevastopole.pptx
