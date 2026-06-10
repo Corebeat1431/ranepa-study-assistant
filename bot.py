@@ -102,6 +102,7 @@ async def update_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Перехватчик всех обновлений для фиксации активности пользователя."""
     global last_activity_time, last_chat_id
     last_activity_time = time.time()
+    logger.info(f"[АКТИВНОСТЬ] Получено обновление: update_id={update.update_id}")
     if update.effective_chat:
         last_chat_id = update.effective_chat.id
 
