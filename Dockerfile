@@ -6,6 +6,8 @@ RUN apt-get update && apt-get install -y \
     nodejs \
     npm \
     curl \
+    fonts-liberation \
+    fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 # Создать рабочую директорию внутри контейнера

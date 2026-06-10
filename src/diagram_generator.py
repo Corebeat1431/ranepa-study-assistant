@@ -18,15 +18,19 @@ COLOR_TEXT_MUTED = (80, 80, 80)    # Dark Grey
 COLOR_ARROW = (128, 0, 0)          # Maroon
 
 def get_fonts(size_title=22, size_body=16):
-    """Loads Times New Roman fonts from Windows directory or defaults to standard."""
+    """Loads Times New Roman or Liberation Serif fonts, falling back to Arial/Sans, then default."""
     paths_title = [
         r"C:\Windows\Fonts\timesbd.ttf",
         r"C:\Windows\Fonts\arialbd.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
         "arial.ttf"
     ]
     paths_body = [
         r"C:\Windows\Fonts\times.ttf",
         r"C:\Windows\Fonts\arial.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         "arial.ttf"
     ]
     

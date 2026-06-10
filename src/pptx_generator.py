@@ -455,12 +455,38 @@ def render_split_slide(slide, bullets, image_name, scale_x, scale_y):
             
     if resolved_path:
         sanitize_image_format(resolved_path)
+        # Рассчитываем пропорции (aspect ratio) и центрируем картинку в боксе 7.5 x 5.5
+        try:
+            from PIL import Image
+            with Image.open(resolved_path) as img:
+                img_w, img_h = img.size
+            img_aspect = img_w / img_h
+        except Exception:
+            img_aspect = 1.6  # по умолчанию
+            
+        box_w = 7.5 * scale_x
+        box_h = 5.5 * scale_y
+        box_aspect = box_w / box_h
+        
+        if box_aspect > img_aspect:
+            # Область шире картинки: фитим по высоте
+            h_val = box_h
+            w_val = box_h * img_aspect
+        else:
+            # Область выше: фитим по ширине
+            w_val = box_w
+            h_val = box_w / img_aspect
+            
+        # Центрируем
+        left_val = 7.5 * scale_x + (box_w - w_val) / 2
+        top_val = 2.0 * scale_y + (box_h - h_val) / 2
+        
         slide.shapes.add_picture(
             resolved_path, 
-            Inches(7.5 * scale_x), 
-            Inches(2.0 * scale_y), 
-            Inches(7.5 * scale_x), 
-            Inches(5.5 * scale_y)
+            Inches(left_val), 
+            Inches(top_val), 
+            width=Inches(w_val), 
+            height=Inches(h_val)
         )
     else:
         print(f"[ПРЕДУПРЕЖДЕНИЕ] Изображение '{image_name}' не найдено ни в output, ни в assets/images")
