@@ -66,11 +66,15 @@ async def shutdown_bot(application: Application):
 async def idle_timeout_monitor(application: Application):
     """Фоновая задача, которая проверяет неактивность пользователя и выгружает бот при бездействии."""
     global last_activity_time, last_chat_id
-    logger.info("[ТАЙМАУТ-МОНИТОР] Монитор контроля неактивности запущен.")
     while True:
         await asyncio.sleep(15)  # проверяем каждые 15 секунд
         if not application.running:
             break
+            
+        # В облаке (на Hugging Face Spaces) бот должен работать 24/7 и не выгружаться по таймауту
+        if os.getenv("SPACE_ID"):
+            await asyncio.sleep(30)
+            continue
             
         # Если прошло более 300 секунд (5 минут) с момента последнего сообщения
         if time.time() - last_activity_time > 300:
@@ -750,7 +754,26 @@ def main():
         write_timeout=60.0,
         pool_timeout=60.0
     )
-    application = Application.builder().token(bot_token).request(request_config).post_init(post_init).build()
+    
+    # Проверяем, задан ли кастомный URL для API Telegram (например, прокси на Cloudflare Workers)
+    # По умолчанию используется стандартный https://api.telegram.org/bot
+    telegram_base_url = os.getenv("TELEGRAM_BASE_URL", "https://api.telegram.org/bot").strip()
+    if not telegram_base_url.endswith("/bot"):
+        if telegram_base_url.endswith("/"):
+            telegram_base_url += "bot"
+        else:
+            telegram_base_url += "/bot"
+            
+    print(f"Использую Telegram API Endpoint: {telegram_base_url}")
+    
+    application = (
+        Application.builder()
+        .token(bot_token)
+        .base_url(telegram_base_url)
+        .request(request_config)
+        .post_init(post_init)
+        .build()
+    )
     
     # Регистрируем перехватчик активности во главе очереди (группа -1)
     from telegram.ext import TypeHandler
