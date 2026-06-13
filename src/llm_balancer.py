@@ -65,7 +65,7 @@ def get_balanced_llm(role: str) -> LLM:
     
     Выбирает модель (Gemini, DeepSeek или гибридный вариант) в зависимости от роли агента.
     """
-    provider = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
+    provider = os.getenv("LLM_PROVIDER", "hybrid").strip().lower()
     
     # Режим OpenRouter (например, для использования бесплатных моделей Qwen-Coder)
     if provider == "openrouter":
