@@ -676,7 +676,7 @@ async def post_init(application: Application) -> None:
 # =====================================================================
 def check_and_start_deepseek_proxy():
     """Проверяет провайдера ИИ и запускает локальный прокси-сервер DeepSeek на порту 9655 в фоновом режиме."""
-    provider = os.getenv("LLM_PROVIDER", "hybrid").strip().lower()
+    provider = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
     if provider not in ["hybrid", "deepseek"]:
         print("[LLM-BALANCER] Провайдер ИИ не требует локального прокси DeepSeek. Пропускаем запуск.")
         return
