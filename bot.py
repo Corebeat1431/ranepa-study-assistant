@@ -107,7 +107,7 @@ async def update_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last_chat_id = update.effective_chat.id
 
 # Состояния диалога
-STATE_THEME, STATE_MODE, STATE_CHOICE, STATE_FILE, STATE_IMAGES = range(5)
+STATE_THEME, STATE_PRESET, STATE_CUSTOM_CONTEXT, STATE_CUSTOM_RESEARCHER, STATE_CUSTOM_CRITIC, STATE_MODE, STATE_CHOICE, STATE_FILE, STATE_IMAGES = range(9)
 
 # =====================================================================
 # ОБРАБОТЧИКИ КОМАНД И ДИАЛОГА
@@ -129,21 +129,131 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def handle_theme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Сохраняем тему и предлагаем выбор формата работы."""
+    """Сохраняем тему и предлагаем выбор направленности/ролей агентов."""
     theme = update.message.text.strip()
     context.user_data["theme"] = theme
     
-    # Кнопки выбора формата
+    # Кнопки выбора пресета
+    keyboard = [
+        ["🏛️ РАНХиГС (Горадминистрация)"],
+        ["💼 Бизнес-стартап (Инвесторы)"],
+        ["🎓 Академический (Научный совет)"],
+        ["✏️ Свой контекст", "⚙️ Настроить роли ИИ"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    
+    await update.message.reply_text(
+        f"Отличная тема: *«{theme}»*.\n\n"
+        "Выберите направленность исследования и роли агентов:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+    return STATE_PRESET
+
+
+async def handle_preset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Сохраняем пресет и переходим к настройке или выбору формата."""
+    choice = update.message.text.strip()
+    
+    # Сбрасываем кастомные настройки перед установкой
+    context.user_data["preset"] = "ranepa"
+    context.user_data["custom_context"] = ""
+    context.user_data["custom_researcher"] = ""
+    context.user_data["custom_critic"] = ""
+    
+    if "РАНХиГС" in choice:
+        context.user_data["preset"] = "ranepa"
+    elif "Бизнес-стартап" in choice:
+        context.user_data["preset"] = "business"
+    elif "Академический" in choice:
+        context.user_data["preset"] = "academic"
+    elif choice == "✏️ Свой контекст":
+        context.user_data["preset"] = "custom"
+        await update.message.reply_text(
+            "Введите ваше описание контекста или особые требования к исследованию (общий промпт):",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return STATE_CUSTOM_CONTEXT
+    elif choice == "⚙️ Настроить роли ИИ":
+        context.user_data["preset"] = "custom"
+        keyboard = [["Далее ➡️"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text(
+            "По умолчанию Исследователь ориентирован на РАНХиГС.\n"
+            "Введите ваше описание роли/задач для Исследователя (или нажмите «Далее ➡️», чтобы использовать по умолчанию):",
+            reply_markup=reply_markup
+        )
+        return STATE_CUSTOM_RESEARCHER
+    else:
+        # Если введено что-то другое, считаем это кастомным контекстом напрямую
+        context.user_data["preset"] = "custom"
+        context.user_data["custom_context"] = choice
+    
+    # Если выбран стандартный пресет, переходим к STATE_MODE (выбор формата)
     keyboard = [
         ["Презентацию и отчет 📝📊"],
         ["Только презентацию (.pptx) 📊"],
         ["Только отчет по работе (.docx) 📝"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    
     await update.message.reply_text(
-        f"Отличная тема: *«{theme}»*.\n\n"
-        "Что именно вы хотите подготовить по этой теме?",
+        "Направленность выбрана! Теперь укажите, что именно вы хотите подготовить по этой теме:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+    return STATE_MODE
+
+
+async def handle_custom_context(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Сохраняем кастомный контекст и переходим к выбору формата."""
+    text = update.message.text.strip()
+    context.user_data["custom_context"] = text
+    
+    keyboard = [
+        ["Презентацию и отчет 📝📊"],
+        ["Только презентацию (.pptx) 📊"],
+        ["Только отчет по работе (.docx) 📝"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text(
+        "Контекст сохранен! Теперь укажите, что именно вы хотите подготовить по этой теме:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+    return STATE_MODE
+
+
+async def handle_custom_researcher(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Сохраняем роль исследователя и запрашиваем роль критика."""
+    text = update.message.text.strip()
+    if text != "Далее ➡️":
+        context.user_data["custom_researcher"] = text
+        
+    keyboard = [["Далее ➡️"]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text(
+        "Роль Исследователя задана.\n"
+        "По умолчанию роль Критика ориентирована на вице-мэра города.\n"
+        "Введите ваше описание роли/критериев для Критика (или нажмите «Далее ➡️», чтобы использовать по умолчанию):",
+        reply_markup=reply_markup
+    )
+    return STATE_CUSTOM_CRITIC
+
+
+async def handle_custom_critic(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Сохраняем роль критика и переходим к выбору формата."""
+    text = update.message.text.strip()
+    if text != "Далее ➡️":
+        context.user_data["custom_critic"] = text
+        
+    keyboard = [
+        ["Презентацию и отчет 📝📊"],
+        ["Только презентацию (.pptx) 📊"],
+        ["Только отчет по работе (.docx) 📝"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text(
+        "Роли настроены! Теперь укажите, что именно вы хотите подготовить по этой теме:",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
@@ -523,17 +633,34 @@ async def run_agents_async(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         # Получаем выбранный режим генерации
         mode = context.user_data.get("mode", "both")
         
+        # Получаем настройки пресета и кастомные роли
+        preset = context.user_data.get("preset", "ranepa")
+        custom_context = context.user_data.get("custom_context", "")
+        custom_researcher = context.user_data.get("custom_researcher", "")
+        custom_critic = context.user_data.get("custom_critic", "")
+        
         # Запуск блокирующей функции run_process в отдельном системном потоке
         # Это защищает event loop бота от блокировки
         from main import run_process
+        from functools import partial
         loop = asyncio.get_running_loop()
+        
+        run_func = partial(
+            run_process,
+            topic=theme,
+            uploaded_file_path=file_path,
+            user_images_dir=user_images_dir,
+            session_id=str(chat_id),
+            mode=mode,
+            preset=preset,
+            custom_context=custom_context,
+            custom_researcher=custom_researcher,
+            custom_critic=custom_critic
+        )
+        
         final_pptx_path, final_docx_path = await loop.run_in_executor(
             None, 
-            run_process, 
-            theme, 
-            file_path,
-            user_images_dir,
-            chat_id # Передаем chat_id в качестве session_id
+            run_func
         )
         
         # Ждем, пока трекер закончит работу (или прерываем его, так как процесс завершен)
@@ -788,6 +915,10 @@ def main():
         ],
         states={
             STATE_THEME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_theme)],
+            STATE_PRESET: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_preset)],
+            STATE_CUSTOM_CONTEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_custom_context)],
+            STATE_CUSTOM_RESEARCHER: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_custom_researcher)],
+            STATE_CUSTOM_CRITIC: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_custom_critic)],
             STATE_MODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_mode)],
             STATE_CHOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_choice)],
             STATE_FILE: [MessageHandler(filters.Document.ALL, handle_file)],

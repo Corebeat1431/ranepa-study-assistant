@@ -152,7 +152,17 @@ def retry_crew_kickoff(crew_instance, inputs, max_retries=4, delay_secs=15):
             else:
                 raise e
 
-def run_process(topic: str, uploaded_file_path: str = "", user_images_dir: str = "", session_id: str = "", mode: str = "both") -> tuple:
+def run_process(
+    topic: str,
+    uploaded_file_path: str = "",
+    user_images_dir: str = "",
+    session_id: str = "",
+    mode: str = "both",
+    preset: str = "ranepa",
+    custom_context: str = "",
+    custom_researcher: str = "",
+    custom_critic: str = ""
+) -> tuple:
     """Запускает цикл генерации презентации и/или отчета РАНХиГС по заданной теме.
     
     Параметры:
@@ -219,7 +229,7 @@ def run_process(topic: str, uploaded_file_path: str = "", user_images_dir: str =
             user_images_prompt += "\nЕсли слайд по смыслу совпадает с одним из этих файлов, укажите его имя в поле 'image'. Одно изображение может быть использовано не более одного раза."
         
     # Динамическая инициализация ИИ-агентов
-    agents = get_agents(topic)
+    agents = get_agents(topic, preset=preset, custom_context=custom_context, custom_researcher=custom_researcher, custom_critic=custom_critic)
     tool_selector, researcher, critic, slide_designer = agents
 
     # Динамическая инициализация исследовательских задач (проходим шаг исследования темы)
@@ -228,7 +238,11 @@ def run_process(topic: str, uploaded_file_path: str = "", user_images_dir: str =
         uploaded_file_path=uploaded_file_path,
         user_images_prompt=user_images_prompt,
         research_text="",
-        agents=agents
+        agents=agents,
+        preset=preset,
+        custom_context=custom_context,
+        custom_researcher=custom_researcher,
+        custom_critic=custom_critic
     )
 
     # 1. Исследовательская команда (Selector + Researcher + Critic)
@@ -265,7 +279,11 @@ def run_process(topic: str, uploaded_file_path: str = "", user_images_dir: str =
         uploaded_file_path=uploaded_file_path,
         user_images_prompt=user_images_prompt,
         research_text=research_text,
-        agents=agents
+        agents=agents,
+        preset=preset,
+        custom_context=custom_context,
+        custom_researcher=custom_researcher,
+        custom_critic=custom_critic
     )
 
     # Настраиваем задачи дизайнера в зависимости от выбранного режима

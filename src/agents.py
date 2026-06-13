@@ -8,7 +8,7 @@ from crewai import Agent
 from src.tools import search_web, read_pdf_file, read_text_file, read_docx_file, generate_chart, search_pubmed, search_openalex, search_arxiv, read_powerpoint_file
 from src.llm_balancer import get_balanced_llm
 
-def get_agents(topic: str, preset: str = "ranepa", custom_context: str = ""):
+def get_agents(topic: str, preset: str = "ranepa", custom_context: str = "", custom_researcher: str = "", custom_critic: str = ""):
     """
     Динамическая инициализация ИИ-агентов только в момент запуска исследования (Lazy Loading).
     Это предотвращает загрузку тяжелых LLM и CrewAI в память при простом импорте модуля.
@@ -108,6 +108,22 @@ def get_agents(topic: str, preset: str = "ranepa", custom_context: str = ""):
         researcher_backstory += f"\n[ОСОБОЕ ТРЕБОВАНИЕ ПОЛЬЗОВАТЕЛЯ ДЛЯ ИССЛЕДОВАНИЯ]: {custom_context}"
         critic_backstory += f"\n[ОСОБОЕ ТРЕБОВАНИЕ ПОЛЬЗОВАТЕЛЯ ДЛЯ КРИТИКИ]: {custom_context}"
         critic_goal += f" (с акцентом на требование: '{custom_context}')"
+
+    if custom_researcher:
+        researcher_role = "Кастомный исследователь"
+        researcher_goal = f"Провести исследование по теме '{topic}' с акцентом на: {custom_researcher}"
+        researcher_backstory = (
+            f"Вы — специализированный исследователь. Ваша роль и бэкграунд: {custom_researcher}. "
+            f"Вы собираете информацию по теме '{topic}', используя научные базы данных и веб-поиск."
+        )
+
+    if custom_critic:
+        critic_role = "Кастомный критик"
+        critic_goal = f"Оценить результаты исследования по теме '{topic}' согласно критериям: {custom_critic}"
+        critic_backstory = (
+            f"Вы — строгий кастомный эксперт-рецензент. Ваши критерии оценки и требования: {custom_critic}. "
+            f"Вы анализируете работу и возвращаете ее на доработку, если требования не выполнены."
+        )
 
     # Агент 0: Навигатор источников (Маршрутизатор)
     tool_selector = Agent(

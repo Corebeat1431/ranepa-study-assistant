@@ -92,7 +92,7 @@ class ReportData(BaseModel):
     appendix_3_practices: str = Field(description="Подробный обзор отечественных и зарубежных практик решения для Приложения 3 (анализ аналогичных проектов в РФ и мире, их эффекты, применимость, от 300 до 500 слов)")
     appendix_4_target_groups: str = Field(description="Подробное описание инструментов работы с целевыми группами для Приложения 4 (методы опросов, фокус-групп, конкретные анкетные вопросы, результаты интервью, от 300 до 500 слов)")
 
-def get_tasks(topic: str, uploaded_file_path: str, user_images_prompt: str, research_text: str, agents: tuple, preset: str = "ranepa", custom_context: str = ""):
+def get_tasks(topic: str, uploaded_file_path: str, user_images_prompt: str, research_text: str, agents: tuple, preset: str = "ranepa", custom_context: str = "", custom_researcher: str = "", custom_critic: str = ""):
     """
     Динамическая инициализация задач для ИИ-агентов (Lazy Loading).
     Создает и форматирует задачи только в момент непосредственного запуска CrewAI.
@@ -149,6 +149,12 @@ def get_tasks(topic: str, uploaded_file_path: str, user_images_prompt: str, rese
             "и финансовое обоснование (затраты бюджета, окупаемость, экономия)."
         )
 
+    if custom_researcher:
+        research_focus_prompt = (
+            f"Ваша цель - составить подробный текст исследования, глубоко прорабатывая требования:\n"
+            f"» {custom_researcher}"
+        )
+
     task_research = Task(
         description=(
             "Проведите исследование по теме: '{topic}'.\n"
@@ -198,6 +204,12 @@ def get_tasks(topic: str, uploaded_file_path: str, user_images_prompt: str, rese
             "- Показана ли явная польза для города (социальная или финансовая)?\n"
             "- Подробно ли расписаны разделы и приложения (1-4)?\n"
             "- Есть ли логические нестыковки?"
+        )
+
+    if custom_critic:
+        critique_focus_prompt = (
+            f"Проведите аудит работы как строгий критик со следующими требованиями:\n"
+            f"» {custom_critic}"
         )
 
     task_critique = Task(
