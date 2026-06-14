@@ -28,6 +28,58 @@ DARK_GRAY = RGBColor(40, 40, 40)   # #282828 (цвет текста)
 LIGHT_GRAY = RGBColor(128, 128, 128) # Цвет подзаголовков
 FONT_NAME = "Montserrat"
 
+def hyphenate_russian_word(word: str) -> str:
+    """Вставляет мягкие переносы (soft hyphens \\u00ad) в русские слова, очищая их от пунктуации."""
+    # Регулярка для выделения буквенного ядра слова и знаков препинания вокруг
+    m = re.match(r'^([^a-zA-Zа-яА-ЯёЁ]*)([a-zA-Zа-яА-ЯёЁ]+-?[a-zA-Zа-яА-ЯёЁ]*)([^a-zA-Zа-яА-ЯёЁ]*)$', word)
+    if not m:
+        return word
+    prefix, core, suffix = m.groups()
+    
+    # Если ядро имеет внутренний дефис (например, социально-культурный), разобьем его части отдельно
+    if '-' in core:
+        parts = core.split('-')
+        hyphenated_parts = [hyphenate_russian_word(p) for p in parts]
+        # Соединяем обычным дефисом с невидимым мягким разрывом после дефиса (zero-width space \u200b) для надежности
+        core_hyphenated = '-\u200b'.join(hyphenated_parts)
+    else:
+        if len(core) <= 5:
+            core_hyphenated = core
+        else:
+            vowels = set('аеёиоуыэюяАЕЁИОУЫЭЮЯ')
+            v_indices = [i for i, char in enumerate(core) if char in vowels]
+            if len(v_indices) <= 1:
+                core_hyphenated = core
+            else:
+                chars = list(core)
+                inserted = 0
+                for i in range(len(v_indices) - 1):
+                    v1 = v_indices[i] + inserted
+                    v2 = v_indices[i+1] + inserted
+                    diff = v2 - v1
+                    if diff == 2:
+                        pos = v1 + 1
+                    elif diff >= 3:
+                        pos = v1 + 2
+                    else:
+                        continue
+                    if pos >= 2 and pos < len(chars) - 2:
+                        chars.insert(pos, '\u00ad')
+                        inserted += 1
+                        for j in range(i+1, len(v_indices)):
+                            v_indices[j] += 1
+                core_hyphenated = ''.join(chars)
+                
+    return prefix + core_hyphenated + suffix
+
+def hyphenate_text(text: str) -> str:
+    """Разбивает текст на слова, расставляет мягкие переносы и собирает обратно."""
+    if not text:
+        return ""
+    words = text.split()
+    hyphenated = [hyphenate_russian_word(w) for w in words]
+    return " ".join(hyphenated)
+
 def split_bullet(bullet_text):
     """Разделяет текст буллета на заголовок и описание по двоеточию, тире или первым 3 словам."""
     bullet_text = bullet_text.strip().lstrip("•-* ").strip()
@@ -205,7 +257,7 @@ def build_slide_2_cards(slide, bullets, scale_x, scale_y):
         tf.margin_bottom = Inches(0)
         
         p1 = tf.paragraphs[0]
-        p1.text = f"0{idx+1}. {b_title}"
+        p1.text = f"0{idx+1}. {hyphenate_text(b_title)}"
         p1.font.name = FONT_NAME
         p1.font.size = Pt(20)
         p1.font.bold = True
@@ -214,7 +266,7 @@ def build_slide_2_cards(slide, bullets, scale_x, scale_y):
         
         if b_body:
             p2 = tf.add_paragraph()
-            p2.text = b_body
+            p2.text = hyphenate_text(b_body)
             p2.font.name = FONT_NAME
             p2.font.size = Pt(15)
             p2.font.color.rgb = DARK_GRAY
@@ -322,7 +374,7 @@ def draw_metric_card(slide, bullet, x, y, w, h, scale_y):
     tf_desc.margin_bottom = Inches(0)
     
     p_desc = tf_desc.paragraphs[0]
-    p_desc.text = desc
+    p_desc.text = hyphenate_text(desc)
     p_desc.font.name = FONT_NAME
     p_desc.font.size = Pt(13)
     p_desc.font.color.rgb = DARK_GRAY
@@ -944,7 +996,7 @@ def draw_vector_timeline(slide, bullets, scale_x, scale_y):
         b_title, b_body = split_bullet(bullet)
         
         p1 = tf.paragraphs[0]
-        p1.text = b_title
+        p1.text = hyphenate_text(b_title)
         p1.font.name = FONT_NAME
         p1.font.size = Pt(16)
         p1.font.bold = True
@@ -952,7 +1004,7 @@ def draw_vector_timeline(slide, bullets, scale_x, scale_y):
         
         if b_body:
             p2 = tf.add_paragraph()
-            p2.text = b_body
+            p2.text = hyphenate_text(b_body)
             p2.font.name = FONT_NAME
             p2.font.size = Pt(13)
             p2.font.color.rgb = DARK_GRAY
@@ -999,7 +1051,7 @@ def draw_vector_structure(slide, bullets, title_text, scale_x, scale_y):
     
     p_c = tf_c.paragraphs[0]
     words = title_text.split()
-    p_c.text = " ".join(words[:2]).upper() if words else "ПРОЕКТ"
+    p_c.text = hyphenate_text(" ".join(words[:2]).upper() if words else "ПРОЕКТ")
     p_c.alignment = 1 # Center
     p_c.font.name = FONT_NAME
     p_c.font.size = Pt(14)
@@ -1085,7 +1137,7 @@ def draw_vector_structure(slide, bullets, title_text, scale_x, scale_y):
         tf_t.margin_bottom = Inches(0.08)
         
         p_t = tf_t.paragraphs[0]
-        p_t.text = b_title
+        p_t.text = hyphenate_text(b_title)
         p_t.font.name = FONT_NAME
         p_t.font.size = Pt(13)
         p_t.font.bold = True
@@ -1096,7 +1148,7 @@ def draw_vector_structure(slide, bullets, title_text, scale_x, scale_y):
             body_words = b_body.split()
             # Берем до 6 слов, чтобы текст гарантированно помещался внутри цветного блока
             short_body = " ".join(body_words[:6]) + ("..." if len(body_words) > 6 else "")
-            p_t2.text = short_body
+            p_t2.text = hyphenate_text(short_body)
             p_t2.font.name = FONT_NAME
             p_t2.font.size = Pt(10)
             p_t2.font.color.rgb = DARK_GRAY

@@ -55,6 +55,8 @@ sys.excepthook = global_excepthook
 # Переменные состояния для контроля неактивности и горячей выгрузки
 last_activity_time = time.time()
 last_chat_id = None
+generation_active = False
+start_chat_id = None
 
 async def shutdown_bot(application: Application):
     """Метод для корректной остановки бота и выгрузки из памяти."""
@@ -65,7 +67,7 @@ async def shutdown_bot(application: Application):
 
 async def idle_timeout_monitor(application: Application):
     """Фоновая задача, которая проверяет неактивность пользователя и выгружает бот при бездействии."""
-    global last_activity_time, last_chat_id
+    global last_activity_time, last_chat_id, generation_active
     while True:
         await asyncio.sleep(15)  # проверяем каждые 15 секунд
         if not application.running:
@@ -74,6 +76,11 @@ async def idle_timeout_monitor(application: Application):
         # В облаке (на Hugging Face Spaces) бот должен работать 24/7 и не выгружаться по таймауту
         if os.getenv("SPACE_ID"):
             await asyncio.sleep(30)
+            continue
+            
+        # Если запущена генерация CrewAI, сбрасываем счетчик неактивности
+        if generation_active:
+            last_activity_time = time.time()
             continue
             
         # Если прошло более 300 секунд (5 минут) с момента последнего сообщения
@@ -613,8 +620,10 @@ async def track_progress(chat_id, status_message, session_id):
 
 async def run_agents_async(update: Update, context: ContextTypes.DEFAULT_TYPE, theme: str, file_path: str = "", user_images_dir: str = ""):
     """Обертка для запуска синхронного CrewAI в асинхронном потоке (to_thread)"""
+    global generation_active
     chat_id = update.effective_chat.id
     progress_task = None
+    generation_active = True
     
     try:
         # Отправляем начальное сообщение с прогресс-баром
@@ -736,6 +745,7 @@ async def run_agents_async(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         asyncio.create_task(shutdown_bot(context.application))
         
     finally:
+        generation_active = False
         # Отменяем задачу отслеживания прогресса, если она активна
         if progress_task:
             progress_task.cancel()
@@ -797,6 +807,34 @@ async def post_init(application: Application) -> None:
     asyncio.create_task(idle_timeout_monitor(application))
     # Запускаем фоновый HTTP-сервер для прохождения Health check на Hugging Face
     asyncio.create_task(start_health_check_server())
+
+    # Отправляем приветствие, если передан start_chat_id
+    global start_chat_id
+    if start_chat_id:
+        logger.info(f"[ИНИЦИАЛИЗАЦИЯ] Автоматический старт диалога для чата {start_chat_id}")
+        try:
+            # Сбрасываем user_data для чистоты сессии
+            application.user_data[start_chat_id].clear()
+            
+            # Отправляем приветственное сообщение
+            await application.bot.send_message(
+                chat_id=start_chat_id,
+                text="🎓 **Приветствую!** Я ваш академический ассистент РАНХиГС.\n\n"
+                     "Я помогу вам написать исследование по теме и сгенерировать готовую презентацию "
+                     "для защиты перед комиссией администрации города.\n\n"
+                     "Отправьте мне **тему вашего проекта** (любую, какую захотите):",
+                parse_mode="Markdown"
+            )
+            
+            # Устанавливаем состояние разговора в STATE_THEME
+            conv_handler = application.bot_data.get("conv_handler")
+            if conv_handler:
+                conv_handler._conversations[(start_chat_id, start_chat_id)] = STATE_THEME
+                logger.info(f"[ИНИЦИАЛИЗАЦИЯ] Установлено состояние STATE_THEME для {start_chat_id}")
+            else:
+                logger.warning("[ИНИЦИАЛИЗАЦИЯ] conv_handler не найден в bot_data!")
+        except Exception as e:
+            logger.error(f"[ИНИЦИАЛИЗАЦИЯ] Не удалось запустить автоматический старт диалога: {e}")
 
 # =====================================================================
 # ТОЧКА ВХОДА БОТА
@@ -864,6 +902,14 @@ def check_and_start_deepseek_proxy():
         print(f"[DS-PROXY] Ошибка запуска прокси-сервера: {e}")
 
 def main():
+    global start_chat_id
+    for arg in sys.argv:
+        if arg.startswith("--start-chat-id="):
+            try:
+                start_chat_id = int(arg.split("=")[1])
+            except ValueError:
+                pass
+
     if not bot_token or bot_token == "your_telegram_bot_token_here":
         print("[ОШИБКА] Пожалуйста, укажите ваш токен TELEGRAM_BOT_TOKEN в файле .env!")
         return
@@ -929,6 +975,9 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+    
+    # Сохраняем conv_handler в bot_data, чтобы к нему был доступ из post_init
+    application.bot_data["conv_handler"] = conv_handler
     
     application.add_handler(conv_handler)
     

@@ -21,30 +21,39 @@ logger = logging.getLogger("Launcher")
 # Глобальные переменные состояния
 should_start_bot = False
 last_chat_id = None
+stop_event = None
 
 async def start_launcher(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды запуска."""
-    global should_start_bot, last_chat_id
+    global should_start_bot, last_chat_id, stop_event
     chat_id = update.effective_chat.id
     last_chat_id = chat_id
     logger.info(f"[ЛАУНЧЕР] Получен запрос на запуск от чата {chat_id}")
     
-    await update.message.reply_text(
-        "🎓 **Инициализация ИИ-агентов РАНХиГС**\n\n"
-        "Поднимаю локальные соединения и запускаю исследовательскую команду. "
-        "Это займет около 15 секунд... 🚀",
-        parse_mode="Markdown"
-    )
+    try:
+        await update.message.reply_text(
+            "🎓 **Инициализация ИИ-агентов РАНХиГС**\n\n"
+            "Поднимаю локальные соединения и запускаю исследовательскую команду. "
+            "Это займет около 15 секунд... 🚀",
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.warning(f"[ЛАУНЧЕР] Не удалось отправить сообщение об инициализации: {e}")
     
     should_start_bot = True
-    # Останавливаем приложение лаунчера, чтобы освободить токен Telegram
-    await context.application.stop()
+    
+    # Сигнализируем событию остановки завершить опрос
+    if stop_event:
+        stop_event.set()
 
 def run_main_bot():
     """Запускает bot.py как подпроцесс и блокирует поток до его завершения."""
+    global last_chat_id
     logger.info("[ЛАУНЧЕР] Запуск основного процесса bot.py...")
     python_exe = sys.executable
     cmd = [python_exe, "-u", "bot.py"]
+    if last_chat_id:
+        cmd.append(f"--start-chat-id={last_chat_id}")
     
     try:
         # Запускаем и ожидаем завершения
@@ -74,6 +83,38 @@ async def send_standby_message():
     except Exception as e:
         logger.error(f"[ЛАУНЧЕР] Не удалось отправить сообщение о спящем режиме: {e}")
 
+async def run_launcher_async(bot_token_val):
+    """Инициализирует и запускает опрос Telegram в асинхронном режиме."""
+    global should_start_bot, stop_event
+    should_start_bot = False
+    stop_event = asyncio.Event()
+    
+    # Создаем легковесный инстанс бота
+    app = Application.builder().token(bot_token_val).build()
+    
+    # Регистрируем только базовые команды запуска
+    app.add_handler(CommandHandler("start", start_launcher))
+    app.add_handler(MessageHandler(filters.Regex("^(🚀 Начать новую работу|/start)$"), start_launcher))
+    
+    # Ручной запуск компонентов апдейта без блокировки в run_polling()
+    await app.initialize()
+    if app.updater:
+        await app.updater.start_polling()
+    await app.start()
+    
+    logger.info("[ЛАУНЧЕР] Ожидание команды запуска в Telegram...")
+    
+    # Блокируем выполнение этой функции до тех пор, пока не сработает событие
+    await stop_event.wait()
+    
+    logger.info("[ЛАУНЧЕР] Завершение опроса диспетчера...")
+    
+    # Чистый graceful shutdown
+    if app.updater:
+        await app.updater.stop()
+    await app.stop()
+    await app.shutdown()
+
 def main():
     global should_start_bot
     
@@ -84,32 +125,25 @@ def main():
     print("=== ЗАПУСК ДИСПЕТЧЕРА БОТА РАНХиГС (STANDBY) ===")
     print("Диспетчер ожидает команду запуска в Telegram...")
     
-    while True:
-        should_start_bot = False
-        
-        # Создаем легковесный инстанс бота
-        app = Application.builder().token(bot_token).build()
-        
-        # Регистрируем только базовые команды запуска
-        app.add_handler(CommandHandler("start", start_launcher))
-        app.add_handler(MessageHandler(filters.Regex("^(🚀 Начать новую работу|/start)$"), start_launcher))
-        
-        # Запускаем поллинг лаунчера (это блокирующий синхронный вызов)
-        app.run_polling(close_loop=False)
-        
-        # Если вышли из run_polling с флагом запуска
-        if should_start_bot:
-            # Запуск основного тяжелого бота в блокирующем режиме
-            run_main_bot()
+    try:
+        while True:
+            # Запускаем асинхронный опрос в текущем цикле событий
+            asyncio.run(run_launcher_async(bot_token))
             
-            # После завершения работы основного бота отправляем пользователю уведомление
-            asyncio.run(send_standby_message())
-            
-            # Небольшая пауза перед повторным стартом лаунчера
-            time.sleep(2)
-        else:
-            # Если лаунчер был остановлен обычным способом (Ctrl+C), прерываем цикл
-            break
+            # Если вышли из опроса с флагом запуска
+            if should_start_bot:
+                run_main_bot()
+                
+                # После завершения работы основного бота отправляем пользователю уведомление
+                asyncio.run(send_standby_message())
+                
+                # Небольшая пауза перед повторным стартом лаунчера
+                time.sleep(2)
+            else:
+                # Если выход был вызван прерыванием (без флага should_start_bot), завершаем работу
+                break
+    except KeyboardInterrupt:
+        print("\n[ЛАУНЧЕР] Работа диспетчера прервана пользователем.")
 
 if __name__ == "__main__":
     try:

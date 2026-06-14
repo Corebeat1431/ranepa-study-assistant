@@ -911,7 +911,7 @@ function extractScreenshotPaths(messages) {
     return paths;
 }
 
-function formatMessages(messages, tools) {
+function formatMessages(messages, tools, isReuse = false) {
     let systemPrompt = '';
     for (const msg of messages) {
         if (msg.role === 'system' && msg.content) {
@@ -919,6 +919,37 @@ function formatMessages(messages, tools) {
         }
     }
     systemPrompt += formatToolDefinitions(tools);
+
+    if (isReuse && messages.length > 0) {
+        // Find the last non-system message
+        let lastMsg = null;
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role !== 'system') {
+                lastMsg = messages[i];
+                break;
+            }
+        }
+        if (lastMsg) {
+            let prompt = '';
+            if (lastMsg.role === 'user' && lastMsg.content) {
+                prompt = lastMsg.content;
+            } else if (lastMsg.role === 'tool' && lastMsg.content) {
+                const truncated = lastMsg.content.length > 8000
+                    ? lastMsg.content.substring(0, 8000) + '\n...[truncated]'
+                    : lastMsg.content;
+                prompt = `[Tool Result]\n${truncated}`;
+            } else if (lastMsg.role === 'assistant') {
+                if (lastMsg.tool_calls && lastMsg.tool_calls.length > 0) {
+                    for (const tc of lastMsg.tool_calls) {
+                        prompt += `TOOL_CALL: ${tc.function.name}\narguments: ${tc.function.arguments}\n\n`;
+                    }
+                } else if (lastMsg.content) {
+                    prompt = lastMsg.content;
+                }
+            }
+            return { prompt: prompt.trim(), systemPrompt: systemPrompt.trim() };
+        }
+    }
 
     // Build full conversation history for DeepSeek's context
     let conversation = '';
@@ -1057,9 +1088,9 @@ const server = http.createServer(async (req, res) => {
                 ? String(requestedSession)
                 : ((remoteAddr === '127.0.0.1' || remoteAddr === '::1' || remoteAddr === '::ffff:127.0.0.1') ? 'dev-agent' : remoteAddr);
             const agentTag = `[${agentId}]`;
-            const { prompt, systemPrompt } = formatMessages(messages, tools);
-
             const session = getOrCreateAgentSession(agentId);
+            const isReuse = !!session.id;
+            const { prompt, systemPrompt } = formatMessages(messages, tools, isReuse);
 
             // Build history prefix if starting fresh
             let historyPrefix = '';

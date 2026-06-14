@@ -60,7 +60,7 @@ def get_base_llm_instance(model_name: str) -> LLM:
         api_key=api_key
     )
 
-def get_balanced_llm(role: str) -> LLM:
+def get_balanced_llm(role: str, session_id: str = None) -> LLM:
     """Основной роутер (балансировщик). 
     
     Выбирает модель (Gemini, DeepSeek или гибридный вариант) в зависимости от роли агента.
@@ -119,9 +119,9 @@ def get_balanced_llm(role: str) -> LLM:
         elif role == "designer":
             # Дизайнер слайдов и отчета делает тяжелые Pydantic-запросы, 
             # которые на веб-прокси DeepSeek падают по тайм-ауту (fetch failed) из-за огромного объема текста (50 000+ символов).
-            # Переводим его на надежный и быстрый Google Gemini.
-            print(f"[LLM-BALANCER] Роль '{role}' перенаправлена на Google Gemini для стабильности генерации: gemini/gemini-2.5-flash")
-            return get_base_llm_instance("gemini/gemini-2.5-flash")
+            # Переводим его на надежный, быстрый и квотно-легкий Google Gemini 3.1 Flash Lite.
+            print(f"[LLM-BALANCER] Роль '{role}' перенаправлена на Google Gemini 3.1 Flash Lite для стабильности генерации: gemini/gemini-3.1-flash-lite")
+            return get_base_llm_instance("gemini/gemini-3.1-flash-lite")
         else:
             base_url = os.getenv("DEEPSEEK_BASE_URL", "http://localhost:9655/v1")
             api_key = os.getenv("DEEPSEEK_API_KEY", "dummy-key")
@@ -133,11 +133,19 @@ def get_balanced_llm(role: str) -> LLM:
                 "critic": "openai/deepseek-reasoner"
             }
             selected_model = role_to_model.get(role, "openai/deepseek-chat")
-            print(f"[LLM-BALANCER] Роль '{role}' назначена на модель DeepSeek (Гибридный режим): {selected_model}")
+            
+            headers = {}
+            if session_id:
+                headers["X-Agent-Session"] = f"session-{session_id}-{role}"
+            else:
+                headers["X-Agent-Session"] = f"session-default-{role}"
+                
+            print(f"[LLM-BALANCER] Роль '{role}' назначена на модель DeepSeek (Гибридный режим): {selected_model} с сессией {headers['X-Agent-Session']}")
             return LLM(
                 model=selected_model,
                 base_url=base_url,
-                api_key=api_key
+                api_key=api_key,
+                extra_headers=headers
             )
             
     # Режим Чистый DeepSeek
@@ -152,11 +160,19 @@ def get_balanced_llm(role: str) -> LLM:
             "designer": "openai/deepseek-chat"
         }
         selected_model = role_to_model.get(role, "openai/deepseek-chat")
-        print(f"[LLM-BALANCER] Роль '{role}' назначена на модель DeepSeek: {selected_model}")
+        
+        headers = {}
+        if session_id:
+            headers["X-Agent-Session"] = f"session-{session_id}-{role}"
+        else:
+            headers["X-Agent-Session"] = f"session-default-{role}"
+            
+        print(f"[LLM-BALANCER] Роль '{role}' назначена на модель DeepSeek: {selected_model} с сессией {headers['X-Agent-Session']}")
         return LLM(
             model=selected_model,
             base_url=base_url,
-            api_key=api_key
+            api_key=api_key,
+            extra_headers=headers
         )
 
     # Режим Чистый Gemini (по умолчанию или при ошибках)

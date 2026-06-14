@@ -229,7 +229,7 @@ def run_process(
             user_images_prompt += "\nЕсли слайд по смыслу совпадает с одним из этих файлов, укажите его имя в поле 'image'. Одно изображение может быть использовано не более одного раза."
         
     # Динамическая инициализация ИИ-агентов
-    agents = get_agents(topic, preset=preset, custom_context=custom_context, custom_researcher=custom_researcher, custom_critic=custom_critic)
+    agents = get_agents(topic, preset=preset, custom_context=custom_context, custom_researcher=custom_researcher, custom_critic=custom_critic, session_id=session_id)
     tool_selector, researcher, critic, slide_designer = agents
 
     # Динамическая инициализация исследовательских задач (проходим шаг исследования темы)

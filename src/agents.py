@@ -8,7 +8,7 @@ from crewai import Agent
 from src.tools import search_web, read_pdf_file, read_text_file, read_docx_file, generate_chart, search_pubmed, search_openalex, search_arxiv, read_powerpoint_file
 from src.llm_balancer import get_balanced_llm
 
-def get_agents(topic: str, preset: str = "ranepa", custom_context: str = "", custom_researcher: str = "", custom_critic: str = ""):
+def get_agents(topic: str, preset: str = "ranepa", custom_context: str = "", custom_researcher: str = "", custom_critic: str = "", session_id: str = None):
     """
     Динамическая инициализация ИИ-агентов только в момент запуска исследования (Lazy Loading).
     Это предотвращает загрузку тяжелых LLM и CrewAI в память при простом импорте модуля.
@@ -17,10 +17,10 @@ def get_agents(topic: str, preset: str = "ranepa", custom_context: str = "", cus
     load_dotenv()
 
     # Инициализация ИИ-моделей (LLM) для каждого агента индивидуально
-    selector_llm = get_balanced_llm("selector")
-    researcher_llm = get_balanced_llm("researcher")
-    critic_llm = get_balanced_llm("critic")
-    designer_llm = get_balanced_llm("designer")
+    selector_llm = get_balanced_llm("selector", session_id)
+    researcher_llm = get_balanced_llm("researcher", session_id)
+    critic_llm = get_balanced_llm("critic", session_id)
+    designer_llm = get_balanced_llm("designer", session_id)
 
     # Дефолтные значения (РАНХиГС / Горадминистрация)
     selector_role = "Исследователь-Навигатор РАНХиГС"

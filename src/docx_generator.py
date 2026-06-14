@@ -742,6 +742,17 @@ def build_word_report(json_data_path, template_path, output_filename):
                 p_between = doc.paragraphs[idx]
                 if p_between.text.strip() == "":
                     p_between._element.getparent().remove(p_between._element)
+                    
+        # 1.5. Принудительный разрыв страницы перед Оглавлением (TOC)
+        from docx.oxml.text.paragraph import CT_P
+        from docx.text.paragraph import Paragraph
+        for el in doc.element.body.iter():
+            if isinstance(el, CT_P):
+                p = Paragraph(el, doc)
+                if p.text.strip().lower() == "оглавление":
+                    p.paragraph_format.page_break_before = True
+                    print("[DOCX] Найдено оглавление, установлен разрыв страницы перед ним.")
+                    break
         
         # Пересчитываем индекс Севастополя после удаления абзацев
         for idx, p in enumerate(doc.paragraphs):
