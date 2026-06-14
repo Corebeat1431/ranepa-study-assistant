@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Скопировать весь исходный код проекта в контейнер
 COPY . .
 
+# Применить патч библиотеки CrewAI для обхода ValidationError
+RUN python patch_crewai.py
+
 # Установить зависимости Node.js для прокси-сервера DeepSeek
 RUN cd FreeDeepseekAPI && npm install --omit=dev
 
